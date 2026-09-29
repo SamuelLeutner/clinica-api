@@ -1,0 +1,23 @@
+============================= test session starts ==============================
+platform linux -- Python 3.12.3, pytest-9.1.1, pluggy-1.6.0 -- /home/claude/clinica-api/venv/bin/python
+cachedir: .pytest_cache
+rootdir: /home/claude/clinica-api
+plugins: anyio-4.15.1
+collecting ... collected 3 items
+
+tests/test_authorization.py::test_bola_blocked_on_get PASSED             [ 33%]
+tests/test_authorization.py::test_bola_blocked_on_update PASSED          [ 66%]
+tests/test_authorization.py::test_bola_blocked_on_list PASSED            [100%]
+
+=============================== warnings summary ===============================
+venv/lib/python3.12/site-packages/fastapi/testclient.py:1
+    from starlette.testclient import TestClient as TestClient  # noqa
+
+venv/lib/python3.12/site-packages/starlette/testclient.py:53
+    _PortalFactoryType = Callable[[], AbstractContextManager[anyio.abc.BlockingPortal]]
+
+venv/lib/python3.12/site-packages/passlib/utils/__init__.py:854
+    from crypt import crypt as _crypt
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+======================== 3 passed, 3 warnings in 7.15s =========================

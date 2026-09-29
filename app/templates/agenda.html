@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block title %}Agenda do dia — {{ today }}{% endblock %}
+{% block header %}<h1>Agenda do dia — {{ today }}</h1>{% endblock %}
+{% block content %}
+    {% if appointments %}
+    <table>
+        <thead>
+            <tr>
+                <th>Horário</th>
+                <th>Paciente</th>
+                <th>Profissional</th>
+                <th>Status</th>
+                <th>Observações</th>
+            </tr>
+        </thead>
+        <tbody>
+        {% for appt in appointments %}
+            <tr>
+                <td>{{ appt.scheduled_at.strftime("%H:%M") }}</td>
+                <td>{{ appt.patient_name }}</td>
+                <td>{{ appt.professional_name }}</td>
+                <td class="status-{{ appt.status.value }}">{{ appt.status.value }}</td>
+                {# appt.notes é conteúdo digitado por usuários (recepção/profissional).
+                   NÃO usamos o filtro |safe em lugar nenhum deste template: o
+                   auto-escape do Jinja2 (ativo por padrão para .html no
+                   Jinja2Templates do FastAPI) converte automaticamente
+                   qualquer <script> ou atributo malicioso em texto literal
+                   inofensivo. Esta é a correção do Exercício 9 para o XSS
+                   stored identificado no Exercício 8. #}
+                <td>{{ appt.notes }}</td>
+            </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+        <p>Nenhuma consulta agendada para hoje.</p>
+    {% endif %}
+{% endblock %}

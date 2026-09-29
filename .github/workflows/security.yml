@@ -1,0 +1,220 @@
+name: Security Pipeline
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+
+  pull_request:
+
+  schedule:
+    - cron: "0 3 * * *"
+
+  workflow_dispatch:
+
+
+permissions:
+  contents: read
+
+
+jobs:
+
+  tests:
+    name: Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run tests
+        run: |
+          pytest -v --junitxml=pytest-report.xml
+
+      - name: Upload pytest report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pytest-report
+          path: pytest-report.xml
+
+
+  sast:
+    name: SAST - Bandit
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Bandit
+        run: |
+          python -m pip install --upgrade pip
+          pip install bandit
+
+      # Critério de bloqueio: severidade HIGH com confiança >= MEDIUM (-lll -ii).
+      # O Bandit sai com código 1 quando encontra algo, o que reprova o job.
+      - name: Run Bandit
+        run: |
+          bandit -r app -lll -ii -f json -o bandit-report.json
+
+      - name: Upload Bandit report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bandit-report
+          path: bandit-report.json
+
+
+  sca:
+    name: SCA - pip-audit
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pip-audit
+
+      # Critério de bloqueio: qualquer vulnerabilidade conhecida (pip-audit sai com 1).
+      # Exceção única e justificada: PYSEC-2026-1325 / CVE-2024-23342 (ecdsa, sem
+      # versão corrigida). Dependência transitiva do python-jose; a aplicação só
+      # assina JWT com HS256, então o caminho ECDSA vulnerável não é exercido.
+      # Ver docs/12-pipeline-devsecops.md. Revisar se houver correção ou se ES256 for adotado.
+      - name: Run pip-audit
+        run: |
+          pip-audit -r requirements.txt \
+            --ignore-vuln PYSEC-2026-1325 \
+            --format json \
+            --output pip-audit-report.json
+
+      - name: Upload pip-audit report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pip-audit-report
+          path: pip-audit-report.json
+
+
+  zap:
+    name: DAST - OWASP ZAP
+    runs-on: ubuntu-latest
+
+    needs:
+      - tests
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Start application
+        run: |
+          uvicorn app.main:app \
+            --host 0.0.0.0 \
+            --port 8000 > app.log 2>&1 &
+
+      - name: Wait for application
+        run: |
+          for _ in $(seq 1 30); do
+            curl --silent --fail http://127.0.0.1:8000/health && exit 0
+            sleep 1
+          done
+          echo "::error::application did not become healthy"
+          exit 1
+
+      - name: Run OWASP ZAP baseline scan
+        uses: zaproxy/action-baseline@v0.15.0
+        with:
+          target: "http://127.0.0.1:8000"
+          fail_action: false # o bloqueio é feito pelo passo seguinte, com limiar explícito
+          allow_issue_writing: false
+
+      # Critério de bloqueio do DAST: qualquer alerta ZAP de risco High (riskcode >= 3).
+      # O ZAP não usa CVSS; "High" é a classificação de risco do próprio scanner.
+      - name: Enforce ZAP threshold
+        run: |
+          python - <<'PY'
+          import json
+          import sys
+
+          with open("report_json.json", encoding="utf-8") as fh:
+              report = json.load(fh)
+          alerts = [a for site in report["site"] for a in site["alerts"]]
+          blocking = [a for a in alerts if int(a["riskcode"]) >= 3]
+          for alert in blocking:
+              print(f"::error::ZAP High alert: {alert['name']}")
+          print(f"{len(alerts)} alert(s), {len(blocking)} blocking")
+          sys.exit(1 if blocking else 0)
+          PY
+
+      - name: Upload application log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: application-log
+          path: app.log
+
+
+  security-gate:
+    name: Security Gate
+    runs-on: ubuntu-latest
+    # always(): sem isso, se um job anterior falhar este job é PULADO, e o GitHub
+    # trata job pulado como sucesso em required status checks.
+    if: ${{ always() }}
+
+    needs:
+      - tests
+      - sast
+      - sca
+      - zap
+
+    steps:
+      - name: Fail unless every security job succeeded
+        env:
+          RESULTS: ${{ join(needs.*.result, ' ') }}
+        run: |
+          echo "Job results: $RESULTS"
+          for result in $RESULTS; do
+            if [ "$result" != "success" ]; then
+              echo "::error::Security gate failed (a required job finished as '$result')"
+              exit 1
+            fi
+          done
+          echo "Security gate passed."
