@@ -1,5 +1,7 @@
 # Clínica — API de Agendamento de Consultas
 
+Link para o video: https://drive.google.com/file/d/1mBqrbj0rKmi12rER6K2zoDfa0DazhXkg/view
+
 API REST em FastAPI para agendamento de consultas médicas, construída com
 segurança desde a primeira linha de código (dado de saúde, LGPD). Este
 README é o relatório técnico consolidado exigido na entrega — explica as
